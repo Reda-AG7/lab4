@@ -1,5 +1,6 @@
 package com.codepath.articlesearch
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -9,15 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.codepath.articlesearch.databinding.ActivityMainBinding
 import com.codepath.asynchttpclient.AsyncHttpClient
 import com.codepath.asynchttpclient.callback.JsonHttpResponseHandler
-import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import org.json.JSONException
 
-fun createJson() = Json {
-    isLenient = true
-    ignoreUnknownKeys = true
-    useAlternativeNames = false
-}
 
 private const val TAG = "MainActivity/"
 private const val SEARCH_API_KEY = BuildConfig.API_KEY
@@ -36,7 +31,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(view)
 
         articlesRecyclerView = findViewById(R.id.articles)
-        // TODO: Set up ArticleAdapter with articles
+        val articleList = ArrayList<Article>()
+
 
         articlesRecyclerView.layoutManager = LinearLayoutManager(this).also {
             val dividerItemDecoration = DividerItemDecoration(this, it.orientation)
@@ -57,17 +53,34 @@ class MainActivity : AppCompatActivity() {
             override fun onSuccess(statusCode: Int, headers: Headers, json: JSON) {
                 Log.i(TAG, "Successfully fetched articles: $json")
                 try {
-                    // TODO: Create the parsedJSON
-
-                    // TODO: Do something with the returned json (contains article information)
-
-                    // TODO: Save the articles and reload the screen
-
+                    val articleJSON= json.jsonObject.getJSONObject("response")
+                    val articleJsonArray = articleJSON.getJSONArray("docs")
+                    Log.d("articleJSONARRAY",articleJsonArray.length().toString())
+                    for(i in 0 until articleJsonArray.length()){
+                        val articleImage = articleJsonArray.getJSONObject(i)
+                                        .getJSONArray("multimedia").getJSONObject(0)
+                                        .getString("url")
+                        val articleTitle = articleJsonArray.getJSONObject(i)
+                                            .getJSONObject("headline").getString("main")
+                        val articleContent = articleJsonArray.getJSONObject(i)
+                            .getString("abstract")
+                        val articleAuthor = articleJsonArray.getJSONObject(i)
+                                            .getJSONObject("byline").getString("original")
+                        articleList.add(Article(articleImage,articleTitle,articleContent,articleAuthor))
+                    }
+                    val articleAdapter = ArticleAdapter(articleList){
+                        val intent = Intent(this@MainActivity,DetailActivity::class.java)
+                        intent.putExtra("title",it.articleTitle)
+                        intent.putExtra("content",it.articleContent)
+                        intent.putExtra("image","https://www.nytimes.com/${it.articleImage}")
+                        intent.putExtra("author",it.articleAuthor)
+                        startActivity(intent)
+                    }
+                    articlesRecyclerView.adapter = articleAdapter
                 } catch (e: JSONException) {
                     Log.e(TAG, "Exception: $e")
                 }
             }
-
         })
 
     }
