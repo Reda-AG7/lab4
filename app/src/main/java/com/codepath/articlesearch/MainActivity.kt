@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,16 +30,23 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         val view = binding.root
         setContentView(view)
-
+        val articleMV = ViewModelProvider(this).get(ArticleModelView::class.java)
         articlesRecyclerView = findViewById(R.id.articles)
-        val articleList = ArrayList<Article>()
-
+        val articleAdapter = ArticleAdapter{
+            val intent = Intent(this,DetailActivity::class.java)
+            intent.putExtra("title",it.articleTitle)
+            intent.putExtra("content",it.articleContent)
+            intent.putExtra("image","https://www.nytimes.com/${it.articleImage}")
+            intent.putExtra("author",it.articleAuthor)
+            startActivity(intent)
+        }
 
         articlesRecyclerView.layoutManager = LinearLayoutManager(this).also {
             val dividerItemDecoration = DividerItemDecoration(this, it.orientation)
             articlesRecyclerView.addItemDecoration(dividerItemDecoration)
         }
-
+        val articleList = ArrayList<ArticleEntity>()
+        val articleEntityList = ArrayList<ArticleEntity>()
         val client = AsyncHttpClient()
         client.get(ARTICLE_SEARCH_URL, object : JsonHttpResponseHandler() {
             override fun onFailure(
@@ -56,32 +64,35 @@ class MainActivity : AppCompatActivity() {
                     val articleJSON= json.jsonObject.getJSONObject("response")
                     val articleJsonArray = articleJSON.getJSONArray("docs")
                     Log.d("articleJSONARRAY",articleJsonArray.length().toString())
+
+                    //update the db and the UI
                     for(i in 0 until articleJsonArray.length()){
                         val articleImage = articleJsonArray.getJSONObject(i)
-                                        .getJSONArray("multimedia").getJSONObject(0)
-                                        .getString("url")
+                            .getJSONArray("multimedia").getJSONObject(0)
+                            .getString("url")
                         val articleTitle = articleJsonArray.getJSONObject(i)
-                                            .getJSONObject("headline").getString("main")
+                            .getJSONObject("headline").getString("main")
                         val articleContent = articleJsonArray.getJSONObject(i)
                             .getString("abstract")
                         val articleAuthor = articleJsonArray.getJSONObject(i)
-                                            .getJSONObject("byline").getString("original")
-                        articleList.add(Article(articleImage,articleTitle,articleContent,articleAuthor))
+                            .getJSONObject("byline").getString("original")
+                       articleList.add(ArticleEntity(0,articleImage,articleTitle,articleContent,articleAuthor))
                     }
-                    val articleAdapter = ArticleAdapter(articleList){
-                        val intent = Intent(this@MainActivity,DetailActivity::class.java)
-                        intent.putExtra("title",it.articleTitle)
-                        intent.putExtra("content",it.articleContent)
-                        intent.putExtra("image","https://www.nytimes.com/${it.articleImage}")
-                        intent.putExtra("author",it.articleAuthor)
-                        startActivity(intent)
+                    if(articleJsonArray.length() > 0){
+                        articleMV.deleteAll()
+                        for(i in articleList){
+                            articleMV.addArticle(i)
+                        }
                     }
-                    articlesRecyclerView.adapter = articleAdapter
                 } catch (e: JSONException) {
                     Log.e(TAG, "Exception: $e")
                 }
             }
         })
 
+        articleMV.allArticles.observe(this){ articles->
+            articleAdapter.setData(articles)
+        }
+        articlesRecyclerView.adapter = articleAdapter
     }
 }
